@@ -1,8 +1,8 @@
 # PulseOps
 
-API de monitorización HTTP. Permite
-registrar páginas, comprobar periódicamente su disponibilidad y latencia, y
-consultar el último resultado almacenado.
+API de monitorización HTTP con ejecución periódica de comprobaciones, persistencia en PostgreSQL e infraestructura reproducible mediante Docker, Terraform y Kubernetes/k3s.
+
+Permite registrar endpoints, monitorizar su disponibilidad y latencia, y consultar el último estado registrado.
 
 PulseOps separa la API del proceso de comprobación, utiliza PostgreSQL como punto
 de coordinación y puede ejecutarse localmente con Docker Compose. El repositorio
