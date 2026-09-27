@@ -2,7 +2,7 @@
   "name": "pulseops",
   "version": "0.1.0",
   "private": true,
-  "description": "Small HTTP monitoring platform",
+  "description": "HTTP monitoring API with a periodic worker, PostgreSQL, Docker, Terraform and k3s",
   "main": "src/server.js",
   "scripts": {
     "start": "node --env-file-if-exists=.env src/server.js",

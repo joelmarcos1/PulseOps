@@ -6,9 +6,12 @@ coverage/
 .env
 npm-debug.log*
 
-# Infrastructure secrets and local state (used in later milestones)
+# Terraform local state, plans, and machine-specific variables
 *.tfstate
 *.tfstate.*
 .terraform/
 *.tfvars
+*.tfplan
+.terraform.tfstate.lock.info
+crash.log
 kubeconfig*

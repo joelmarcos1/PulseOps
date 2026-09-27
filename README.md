@@ -1,87 +1,75 @@
 # PulseOps
 
-PulseOps será una pequeña plataforma de monitorización HTTP. Permitirá registrar
-URLs, comprobarlas periódicamente y consultar su estado y latencia.
+API de monitorización HTTP construida como proyecto de backend y DevOps. Permite
+registrar páginas, comprobar periódicamente su disponibilidad y latencia, y
+consultar el último resultado almacenado.
 
-La aplicación se está construyendo con JavaScript, Node.js y Express. Consulta
-[la guía paso a paso](docs/guia-paso-a-paso.md) para entender las decisiones,
-los archivos y los comandos del proyecto.
+PulseOps separa la API del proceso de comprobación, utiliza PostgreSQL como punto
+de coordinación y puede ejecutarse localmente con Docker Compose. El repositorio
+también incluye infraestructura AWS con Terraform y un despliegue de un nodo en
+k3s.
 
-## Estado
+## Funcionalidades
 
-- [x] Base de la API con `GET /health` y una prueba automatizada.
-- [x] Registro y consulta de monitores.
-- [x] Persistencia de monitores y resultados en PostgreSQL.
-- [x] Worker de comprobaciones periódicas.
-- [x] Entorno completo con API, worker y PostgreSQL en Docker Compose.
-- [ ] Infraestructura AWS con Terraform y despliegue en k3s.
-- [ ] CI y publicación de imágenes con GitHub Actions.
+- Registro y consulta de monitores mediante una API REST.
+- Worker independiente con intervalo y timeout configurables.
+- Estados `UP` y `DOWN`, código HTTP, latencia y clasificación de errores.
+- Persistencia de monitores y resultados en PostgreSQL.
+- Política `ALLOWED_HOSTS` para limitar los destinos que puede visitar el worker.
+- Una única imagen Docker reutilizada por API y worker.
+- Entorno local reproducible con Docker Compose.
+- Infraestructura como código para AWS y manifiestos Kubernetes para k3s.
+- Pruebas automatizadas de la API, validaciones y comprobaciones HTTP.
 
-## Requisitos actuales
+## Arquitectura
 
-- Node.js 20 o posterior.
-- npm.
+```mermaid
+flowchart LR
+    Client[Cliente HTTP] --> API[API Express]
+    API --> DB[(PostgreSQL)]
+    Worker[Worker periódico] --> DB
+    Worker --> Targets[URLs permitidas]
+```
+
+API y worker son procesos independientes. La API registra y consulta monitores;
+el worker obtiene de PostgreSQL los monitores activos, realiza las peticiones y
+guarda los resultados. Esta separación permite ejecutar cada proceso en un
+contenedor y desplegarlo después como un `Deployment` diferente en Kubernetes.
+
+## Tecnologías
+
+| Área | Tecnologías |
+|---|---|
+| Backend | JavaScript, Node.js 20, Express 5 |
+| Datos | PostgreSQL 16, SQL parametrizado |
+| Pruebas | `node:test`, `node:assert`, Fetch API |
+| Contenedores | Docker, Docker Compose |
+| Infraestructura | Terraform, AWS EC2/VPC |
+| Orquestación | Kubernetes, k3s |
+
+## Puesta en marcha local
+
+Requisitos:
+
 - Docker.
 - Docker Compose 2.
 
-## Preparación
+Crear la configuración local y levantar el entorno completo:
 
 ```bash
-npm install
 cp .env.example .env
-```
-
-`npm install` solo es necesario para desarrollar y ejecutar pruebas fuera de
-Docker. Compose instala las dependencias dentro de la imagen.
-
-## Entorno completo con Docker Compose
-
-Construir la imagen y levantar API, worker y PostgreSQL:
-
-```bash
 docker compose up --build --detach
-```
-
-Consultar el estado:
-
-```bash
 docker compose ps
 ```
 
-Seguir los logs:
+Se inician tres servicios: PostgreSQL, API y worker. La API queda disponible
+únicamente en `http://127.0.0.1:8080`; PostgreSQL también se enlaza solo a la
+interfaz local.
+
+Comprobar la API:
 
 ```bash
-docker compose logs --follow api worker database
-```
-
-La API queda disponible en `http://127.0.0.1:8080`. PostgreSQL se publica solo
-en `127.0.0.1:5432` y los tres servicios también se comunican mediante la red
-privada de Compose.
-
-## Ejecutar las pruebas
-
-```bash
-npm test
-```
-
-## Ejecutar fuera de Docker durante el desarrollo
-
-Modo normal:
-
-```bash
-npm start
-```
-
-Modo desarrollo, reiniciando el servidor al guardar cambios:
-
-```bash
-npm run dev
-```
-
-La API queda disponible en `http://localhost:8080`. Para comprobarla:
-
-```bash
-curl http://localhost:8080/health
+curl http://127.0.0.1:8080/health
 ```
 
 Respuesta esperada:
@@ -90,44 +78,124 @@ Respuesta esperada:
 {"status":"ok"}
 ```
 
-El worker se puede ejecutar en otra terminal:
+Registrar una página permitida:
 
 ```bash
-npm run worker
-```
-
-El worker comprueba inmediatamente todos los monitores activos, guarda los
-resultados y espera 30 segundos antes de la siguiente ronda. Se detiene con
-`Ctrl+C`.
-
-## Registrar y consultar monitores
-
-Mientras la API está ejecutándose, se puede registrar un monitor con:
-
-```bash
-curl -i -X POST http://localhost:8080/monitors \
+curl -X POST http://127.0.0.1:8080/monitors \
   -H 'Content-Type: application/json' \
   -d '{"name":"Example","url":"https://example.com"}'
 ```
 
-Para consultar los monitores registrados:
+Consultar monitores y su último resultado:
 
 ```bash
-curl -i http://localhost:8080/monitors
+curl http://127.0.0.1:8080/monitors
 ```
 
-`GET /monitors` incluye en `latestCheck` el último resultado guardado por el
-worker. Los datos permanecen después de reiniciar la API porque se encuentran en
-el volumen de PostgreSQL.
+El worker realiza una comprobación inmediatamente y repite la ronda cada 30
+segundos. Los datos permanecen después de reiniciar los contenedores porque
+PostgreSQL utiliza un volumen Docker.
 
-Por seguridad, solo se pueden registrar dominios incluidos en `ALLOWED_HOSTS`.
-Su valor local se configura en `.env` como una lista separada por comas.
-
-Para detener y eliminar los contenedores sin borrar los datos:
+Para ver los logs o detener el entorno sin borrar los datos:
 
 ```bash
+docker compose logs --follow api worker database
 docker compose down
 ```
 
-El siguiente `docker compose up --detach` recuperará la base desde el volumen.
-No utilices `docker compose down --volumes` si quieres conservar los datos.
+## API
+
+| Método | Ruta | Descripción | Respuestas principales |
+|---|---|---|---|
+| `GET` | `/health` | Comprueba que el proceso responde | `200` |
+| `POST` | `/monitors` | Registra una URL permitida | `201`, `400`, `409` |
+| `GET` | `/monitors` | Lista monitores y último resultado | `200` |
+
+Ejemplo de un monitor comprobado:
+
+```json
+{
+  "id": 1,
+  "name": "Example",
+  "url": "https://example.com/",
+  "enabled": true,
+  "createdAt": "2026-09-27T18:00:00.000Z",
+  "latestCheck": {
+    "status": "UP",
+    "httpStatus": 200,
+    "latencyMs": 87,
+    "errorType": null,
+    "errorMessage": null,
+    "checkedAt": "2026-09-27T18:00:30.000Z"
+  }
+}
+```
+
+## Pruebas
+
+Las pruebas utilizan un repositorio en memoria, por lo que no necesitan una base
+de datos real:
+
+```bash
+npm ci
+npm test
+```
+
+Actualmente se verifican 11 casos: salud, creación, listado, duplicados,
+validación de nombres y URLs, respuestas HTTP correctas, timeouts y errores de
+red.
+
+## Configuración
+
+| Variable | Valor local predeterminado | Uso |
+|---|---|---|
+| `DATABASE_URL` | PostgreSQL local | Conexión de API y worker |
+| `PORT` | `8080` | Puerto de la API |
+| `CHECK_INTERVAL_MS` | `30000` | Tiempo entre rondas |
+| `REQUEST_TIMEOUT_MS` | `5000` | Límite de cada petición |
+| `ALLOWED_HOSTS` | `example.com,api` | Destinos que se pueden monitorizar |
+
+`.env.example` contiene valores de desarrollo. `.env` está ignorado por Git y
+no debe contener credenciales de producción versionadas.
+
+## AWS y k3s
+
+La carpeta `infra/terraform` define una VPC, una subred pública, reglas de acceso
+restringidas a una IP, una instancia EC2 y un disco cifrado. La carpeta `k8s`
+contiene los objetos para desplegar API, worker y PostgreSQL en k3s.
+
+La definición se ha formateado y validado localmente, pero no se ha ejecutado
+`terraform apply` ni se han creado recursos en una cuenta AWS. La guía incluye
+el coste estimado, autenticación, plan, despliegue y destrucción:
+
+- [Guía de infraestructura AWS y k3s](docs/aws-k3s.md).
+
+## Estructura del repositorio
+
+```text
+src/                API, worker, acceso a datos y validación
+test/               Pruebas automatizadas
+test-support/       Repositorio en memoria para las pruebas
+db/                 Esquema inicial de PostgreSQL
+compose.yaml        Entorno local completo
+infra/terraform/    Infraestructura AWS
+k8s/                Manifiestos Kubernetes
+scripts/aws/        Despliegue y diagnóstico remotos
+docs/               Documentación técnica paso a paso
+```
+
+## Decisiones y límites
+
+- Las consultas SQL utilizan parámetros; los valores no se concatenan en SQL.
+- Las URLs deben usar HTTP/HTTPS, no pueden incluir credenciales y su hostname
+  debe estar autorizado, reduciendo el riesgo de SSRF.
+- El proyecto es un MVP personal: todos los clientes de una instalación ven los
+  mismos monitores; no hay autenticación ni gestión de usuarios.
+- El despliegue k3s es de un solo nodo, sin alta disponibilidad ni copias de
+  seguridad, y está pensado como laboratorio, no como plataforma de producción.
+- No se incluye CI/CD; la imagen se construye y transfiere manualmente.
+
+## Documentación
+
+- [Guía paso a paso de la aplicación](docs/guia-paso-a-paso.md).
+- [Guía de AWS, Terraform y k3s](docs/aws-k3s.md).

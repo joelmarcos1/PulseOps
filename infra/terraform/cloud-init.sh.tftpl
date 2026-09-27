@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euxo pipefail
+
+apt-get update
+DEBIAN_FRONTEND=noninteractive apt-get install --yes curl ca-certificates
+
+curl -sfL https://get.k3s.io \
+  | INSTALL_K3S_VERSION="${k3s_version}" \
+    INSTALL_K3S_EXEC="server --disable traefik --disable servicelb" \
+    sh -
+
+systemctl enable --now k3s
+
+until k3s kubectl get node >/dev/null 2>&1; do
+  sleep 5
+done
+
+touch /var/lib/pulseops-k3s-ready

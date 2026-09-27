@@ -22,6 +22,7 @@ services:
       dockerfile: Dockerfile
     image: pulseops:local
     command: ["node", "src/server.js"]
+    restart: "on-failure:5"
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-pulseops}:${POSTGRES_PASSWORD:-pulseops}@database:5432/${POSTGRES_DB:-pulseops}
       PORT: 8080
@@ -44,6 +45,7 @@ services:
   worker:
     image: pulseops:local
     command: ["node", "src/worker.js"]
+    restart: "on-failure:5"
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-pulseops}:${POSTGRES_PASSWORD:-pulseops}@database:5432/${POSTGRES_DB:-pulseops}
       CHECK_INTERVAL_MS: ${CHECK_INTERVAL_MS:-30000}

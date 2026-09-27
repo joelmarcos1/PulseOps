@@ -1,16 +1,15 @@
 # PulseOps: guía paso a paso
 
 Este documento registra qué contiene PulseOps, para qué sirve cada pieza y cómo
-comprobar los avances. Se actualizará al completar cada incremento verificable.
+se comprobó cada incremento.
 
 ## 1. Objetivo del proyecto
 
-PulseOps será una plataforma pequeña de monitorización HTTP. Un usuario podrá
-registrar una URL y un proceso periódico comprobará si responde, medirá su
-latencia y almacenará el resultado. La información se podrá consultar mediante
-una API.
+PulseOps es una plataforma pequeña de monitorización HTTP. Un usuario puede
+registrar una URL y un proceso periódico comprueba si responde, mide su latencia
+y almacena el resultado. La información se consulta mediante una API.
 
-El MVP terminará incluyendo:
+El MVP incluye:
 
 - Una API HTTP.
 - Un worker que compruebe las URLs.
@@ -18,7 +17,8 @@ El MVP terminará incluyendo:
 - Contenedores Docker para el desarrollo local.
 - Infraestructura AWS definida con Terraform.
 - Un despliegue en k3s.
-- Pruebas y construcción de imágenes mediante GitHub Actions.
+
+La automatización CI/CD queda fuera del alcance final.
 
 ## 2. Elección de JavaScript, Node.js y Express
 
@@ -31,9 +31,9 @@ Cada nombre representa algo distinto:
 - **npm** instala las dependencias y ejecuta comandos definidos por el proyecto.
 - **Express** es una biblioteca para definir rutas y respuestas HTTP.
 
-Esta elección no impide utilizar PostgreSQL, Docker, Kubernetes, Terraform,
-AWS o GitHub Actions. Esas herramientas pueden desplegar aplicaciones creadas
-con distintos lenguajes.
+Esta elección no impide utilizar PostgreSQL, Docker, Kubernetes, Terraform o
+AWS. Esas herramientas pueden desplegar aplicaciones creadas con distintos
+lenguajes.
 
 ## 3. Primer incremento: endpoint de salud
 
@@ -51,21 +51,25 @@ componentes.
 ## 4. Estructura actual
 
 ```text
-ProjectResume/
+PulseOps/
 ├── .dockerignore
 ├── .env.example
 ├── .gitignore
 ├── Dockerfile
 ├── README.md
-├── Work.txt
 ├── compose.yaml
 ├── package.json
 ├── package-lock.json
-├── PulseOps_guia_para_Codex.pdf
 ├── db/
 │   └── init.sql
 ├── docs/
+│   ├── aws-k3s.md
 │   └── guia-paso-a-paso.md
+├── infra/
+│   └── terraform/
+├── k8s/
+├── scripts/
+│   └── aws/
 ├── src/
 │   ├── app.js
 │   ├── checkUrl.js
@@ -85,19 +89,6 @@ ProjectResume/
 
 `node_modules/` también existe después de instalar las dependencias, pero no se
 incluye en Git porque puede regenerarse con `npm install`.
-
-Librerias necesarias para la app 
-
-### `PulseOps_guia_para_Codex.pdf`
-
-Es el documento original con el alcance, la arquitectura objetivo, las etapas y
-las precauciones de seguridad y costes. No se ejecuta ni se modifica.
-
-### `Work.txt`
-
-Contiene apuntes personales creados antes de la migración y menciona el entorno
-virtual de Python. Se conserva porque pertenece al usuario, aunque `.venv` ya no
-forma parte de la implementación actual.
 
 ### `README.md`
 
@@ -767,6 +758,9 @@ base acepte conexiones. El puerto se publica como
 `127.0.0.1:8080:8080`, por lo que el navegador del host puede acceder a la API,
 pero no se expone en todas las interfaces.
 
+`restart: on-failure:5` permite hasta cinco reintentos si durante el arranque se
+produce un fallo transitorio de red o de resolución DNS.
+
 El healthcheck de la API ejecuta una petición a `/health` desde el propio
 contenedor mediante el `fetch` de Node.js.
 
@@ -775,15 +769,16 @@ contenedor mediante el `fetch` de Node.js.
 Reutiliza `pulseops:local` sin construir otra imagen y sustituye el comando por
 `node src/worker.js`. Comparte con API la conexión a PostgreSQL, el timeout y la
 lista de hosts permitidos. No publica puertos porque nadie necesita iniciar una
-conexión hacia el worker.
+conexión hacia el worker. También dispone de hasta cinco reintentos ante un fallo
+transitorio de arranque.
 
 ### Red interna
 
-Compose crea automáticamente `projectresume_default`:
+Compose crea automáticamente `pulseops_default`:
 
 ```text
 api ─────────┐
-             ├── projectresume_default ── database
+             ├── pulseops_default ── database
 worker ──────┘
 ```
 
@@ -850,8 +845,21 @@ intencional: el worker no debe depender de que la API esté disponible.
 Al terminar se eliminaron los datos de demostración y se reiniciaron las
 secuencias. La base quedó con cero monitores y cero resultados.
 
-## 10. Estado y próximo incremento
+## 10. Estado del entorno local
 
-API, worker y PostgreSQL están ejecutándose mediante Docker Compose. El próximo
-hito del plan es definir con Terraform la red y una instancia EC2 en AWS. Antes
-de crear recursos se revisarán región, acceso, credenciales y coste estimado.
+API, worker y PostgreSQL se verificaron conjuntamente mediante Docker Compose.
+
+## 11. Infraestructura AWS y k3s
+
+Se ha añadido la definición de la red y EC2 con Terraform, los manifiestos de
+Kubernetes y los scripts de despliegue manual. La explicación completa, el coste,
+los comandos de creación, las comprobaciones y la destrucción están en
+[`docs/aws-k3s.md`](aws-k3s.md).
+
+La configuración local supera `terraform validate`, los siete objetos de
+Kubernetes superan la validación de esquema para Kubernetes 1.36, las once
+pruebas Node.js pasan y la imagen `pulseops:manual` se construye correctamente.
+
+Todavía no se ha ejecutado `terraform apply`: falta iniciar sesión en AWS,
+revisar el plan real y aprobar de forma explícita el gasto estimado. Hasta ese
+momento no existe ningún recurso del proyecto en AWS ni se genera coste.

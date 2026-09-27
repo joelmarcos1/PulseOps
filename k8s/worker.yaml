@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pulseops-worker
+  namespace: pulseops
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pulseops-worker
+  template:
+    metadata:
+      labels:
+        app: pulseops-worker
+    spec:
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:16-alpine
+          command:
+            - sh
+            - -c
+            - until pg_isready -h postgres -U pulseops; do sleep 2; done
+      containers:
+        - name: worker
+          image: pulseops:manual
+          imagePullPolicy: IfNotPresent
+          command: ["node", "src/worker.js"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: pulseops-secrets
+                  key: DATABASE_URL
+            - name: CHECK_INTERVAL_MS
+              valueFrom:
+                configMapKeyRef:
+                  name: pulseops-config
+                  key: CHECK_INTERVAL_MS
+            - name: REQUEST_TIMEOUT_MS
+              valueFrom:
+                configMapKeyRef:
+                  name: pulseops-config
+                  key: REQUEST_TIMEOUT_MS
+            - name: ALLOWED_HOSTS
+              valueFrom:
+                configMapKeyRef:
+                  name: pulseops-config
+                  key: ALLOWED_HOSTS
+          resources:
+            requests:
+              cpu: 50m
+              memory: 96Mi
+            limits:
+              cpu: 300m
+              memory: 256Mi

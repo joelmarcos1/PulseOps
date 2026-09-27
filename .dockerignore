@@ -6,8 +6,9 @@ test/
 test-support/
 docs/
 db/
+infra/
+k8s/
+scripts/
 *.pdf
-Work.txt
 README.md
 npm-debug.log*
-
