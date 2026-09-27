@@ -1,4 +1,5 @@
 # PulseOps
+Este proyecto ha sido desarrollado con fines educativos, con el objetivo de practicar conceptos de backend, contenedores, infraestructura como código y despliegue en Kubernetes.
 
 API de monitorización HTTP con ejecución periódica de comprobaciones, persistencia en PostgreSQL e infraestructura reproducible mediante Docker, Terraform y Kubernetes/k3s.
 
