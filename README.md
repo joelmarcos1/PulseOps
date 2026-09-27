@@ -1,6 +1,6 @@
 # PulseOps
 
-API de monitorización HTTP construida como proyecto de backend y DevOps. Permite
+API de monitorización HTTP. Permite
 registrar páginas, comprobar periódicamente su disponibilidad y latencia, y
 consultar el último resultado almacenado.
 
