@@ -1,0 +1,14 @@
+# Node.js dependencies and generated reports
+node_modules/
+coverage/
+
+# Local configuration and secrets
+.env
+npm-debug.log*
+
+# Infrastructure secrets and local state (used in later milestones)
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfvars
+kubeconfig*

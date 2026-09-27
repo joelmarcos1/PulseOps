@@ -1,0 +1,109 @@
+PulseOPSestá pensado como una herramienta personal de laboratorio, no como una plataforma pública multiusuario.
+Cada ejecutara su aplicacion donde se guardaran sus monitorizaciones.
+
+------------------
+API -> ESTTRUCTURA:
+    ProjectResume/
+    ├── node_modules/       <-- Librerías externas descargadas por npm (no se sube a Git)
+    ├── package.json        <-- El mapa del proyecto: metadatos, librerías y scripts (ej. npm start)
+    ├── package-lock.json   <-- Registro de versiones exactas para mantener consistencia
+    └── src/
+        ├── app.js          <-- La Lógica: Configura Express, middlewares y los endpoints (ej. /health)
+        └── server.js       <-- El Arranque: Importa app.js y arranca el server pone a escucharo e server en el puerto 8080
+
+    
+   
+        Node.js -> Un entorno de ejecución de JavaScript asíncrono e impulsado por eventos (runtime) basado en el motor V8 de Google Chrome.
+            Compila y ejecuta tu código JavaScript directamente en el sistema operativo (fuera de un navegador web).
+        
+        npm ->  gestor de paquetes por defecto para Node.js 
+
+        Express -> Express es una biblioteca para construir servidores web y APIs sobre Node.js.
+
+    FUNIONAMIENTO:
+        - Node.js (Módulo http): Es el que crea el servidor real de red y abre el puerto 8080.
+        - Express: Es la librería que estructura y organiza el tráfico que le llega a ese servidor para que puedas responder fácil a peticiones HTTP.server.js: 
+        Es el archivo donde le dices a Node.js que ponga a funcionar ese servidor.
+    
+
+    Package json:
+        package.json -> ficha tecnica proyecto contiene:
+            librerias que necesita el proyecto, scripts para ejecutar diferentes comandos de manera rapida (ej arrancar el server)
+            
+-----------------
+
+
+    ENDOPOINTS:
+        POST /monitors  → registra un monitor de url 
+        GET  /monitors  → muestra los monitores url registrados
+    
+    FUNCIONAMIENTO:
+            POST /monitors
+                │
+                ▼
+            Express valida name y url
+                │
+                ▼
+            Crea un objeto Monitor
+                │ -> lo convierte ??
+                ▼
+            Lo envia a PostgreSQL
+                │
+                ▼
+            GET /monitors permite consultarlo
+
+    JSON QUE ENVIA EL CLIENTE:
+        {
+            "name": "Example",
+            "url": "https://example.com"
+        }
+
+
+
+
+
+--------------
+ESTRUCTURA WORKER Y BASE DE DATOS:
+    
+    WORKER ->  Proceso que cada cierto tiempo visita las urls guardadas, 
+                mida latencia y registre UP y DOWN
+
+        PROBLEMA:
+            Proceso API                    Proceso worker
+            └── su propia memoria          └── su propia memoria
+        
+        El worker no puede ver el array de la API. Podríamos meterlo dentro del mismo proceso, 
+        pero después sería difícil separarlo en Docker y Kubernetes, donde API y worker deben ejecutarse independientemente.
+
+        SOLUCIÓN -> BD PostgreSQL:
+    
+    BASE DE DATOS:
+        USAMOOS  -> PostgreSQL, es un sistema gestor de bases de datos relacional
+            
+            Cliente
+                │
+                │ POST/GET /monitors
+                ▼
+                API Express
+                │
+                ▼
+                PostgreSQL
+                ▲
+                │ guarda resultados
+                Worker
+                │
+                └── comprueba las URLs
+    -----------
+    FUNCIONAMIENTO WORKER:
+
+    FUNCIONAMIENTO BASE DE DATOS:
+
+
+    ARCHIVOS DE CONFIGURACION:
+        .env.example .env --> archivo de configuracion del proyecto:
+            se sube al repositorio de código (como Git) sin contraseñas reales para que otros desarrolladores 
+            sepan qué variables de entorno necesita la aplicación para funcionar. Cada desarrollador copia este archivo, 
+            lo renombra a .env y ajusta los valores a su entorno local.
+
+            (cada desarrollador pondra sus variables con  sus contraseñas)
+        

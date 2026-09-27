@@ -1,0 +1,58 @@
+services:
+  database:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-pulseops}
+      POSTGRES_USER: ${POSTGRES_USER:-pulseops}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pulseops}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: pulseops:local
+    command: ["node", "src/server.js"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-pulseops}:${POSTGRES_PASSWORD:-pulseops}@database:5432/${POSTGRES_DB:-pulseops}
+      PORT: 8080
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-example.com,api}
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      database:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:8080/health').then(response => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  worker:
+    image: pulseops:local
+    command: ["node", "src/worker.js"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-pulseops}:${POSTGRES_PASSWORD:-pulseops}@database:5432/${POSTGRES_DB:-pulseops}
+      CHECK_INTERVAL_MS: ${CHECK_INTERVAL_MS:-30000}
+      REQUEST_TIMEOUT_MS: ${REQUEST_TIMEOUT_MS:-5000}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-example.com,api}
+    depends_on:
+      database:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+    name: pulseops_postgres_data
